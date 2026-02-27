@@ -20,76 +20,112 @@ fi
 case "$OPCION" in
     -c)
         # Códigos de respuesta únicos y su conteo
-        awk '{print $9}' "$ARCHIVO" | sort | uniq -c | awk '{printf "Código %s: %s veces\n", $2, $1}'
+        # Extraemos la columna 9 con cut (código de estado), ordenamos y contamos
+        cut -d' ' -f9 "$ARCHIVO" | sort | uniq -c | while read count code; do
+            echo "Código $code: $count veces"
+        done
         ;;
 
     -t)
         # Días sin acceso en el rango fecha inicio - fecha fin
-        fechas=$(awk '{print $4}' "$ARCHIVO" | cut -d'[' -f2 | cut -d':' -f1 | sort -u)
+        # Extraemos la fecha (ej: 10/Oct/2000), eliminamos corchetes y sacamos valores únicos
+        fechas=$(cut -d' ' -f4 "$ARCHIVO" | cut -d'[' -f2 | cut -d':' -f1 | sort -u)
         min_epoch=20000000000
         max_epoch=0
         dias_con_acceso=0
         
         export LC_TIME=en_US.UTF-8
         for f in $fechas; do
+            # Reemplazamos las '/' por espacios para que date lo entienda (ej: "10 Oct 2000")
             f_espacios="${f//\// }"
             epoch=$(date -d "$f_espacios" +%s 2>/dev/null)
             if [ -n "$epoch" ]; then
                 ((dias_con_acceso++))
-                [[ $epoch -lt $min_epoch ]] && min_epoch=$epoch
-                [[ $epoch -gt $max_epoch ]] && max_epoch=$epoch
+                [ "$epoch" -lt "$min_epoch" ] && min_epoch=$epoch
+                [ "$epoch" -gt "$max_epoch" ] && max_epoch=$epoch
             fi
         done
         
         if [ "$dias_con_acceso" -gt 0 ]; then
+            # Calculamos los días totales dividiendo los segundos entre 86400 (segundos por día)
             dias_totales=$(( (max_epoch - min_epoch) / 86400 + 1 ))
-            echo "$((dias_totales - dias_con_acceso))"
+            echo $((dias_totales - dias_con_acceso))
+        else
+            echo "0"
         fi
         ;;
 
     GET|POST)
         # Accesos tipo GET/POST con respuesta 200
-        cantidad=$(awk -v m="\"$OPCION" '$6 == m && $9 == "200" {c++} END {print c+0}' "$ARCHIVO")
+        cantidad=0
+        while read -r ip guion1 guion2 fecha_hora zona metodo url protocolo codigo bytes resto; do
+            # Limpiamos las comillas iniciales del método (ej: "GET -> GET)
+            metodo_limpio="${metodo#\"}"
+            if [ "$metodo_limpio" = "$OPCION" ] && [ "$codigo" = "200" ]; then
+                ((cantidad++))
+            fi
+        done < "$ARCHIVO"
+
         fecha_exec=$(LANG=en_US.UTF-8 date "+%b %d %H:%M:%S")
         echo "${fecha_exec}. Registrados ${cantidad} accesos tipo $OPCION con respuesta 200."
         ;;
 
     -s)
         # KiB enviados por mes
-        awk '{
-            split($4, p, "/"); mes = p[2]
-            bytes = ($10 == "-") ? 0 : $10
-            sum[mes] += bytes; acc[mes]++
-        } END {
-            for (m in sum) printf "%d KiB sent in %s by %d accesses.\n", int(sum[m]/1024), m, acc[m]
-        }' "$ARCHIVO"
+        declare -A sum_mes
+        declare -A acc_mes
+
+        while read -r ip guion1 guion2 fecha_hora zona metodo url protocolo codigo bytes resto; do
+            # fecha_hora viene como [10/Oct/2000:13:55:36
+            fecha_limpia="${fecha_hora#\[}"   # Quitamos el '['
+            mes="${fecha_limpia#*/}"          # Quitamos el día y la primera '/'
+            mes="${mes%%/*}"                  # Nos quedamos con lo anterior a la segunda '/' (el mes)
+            
+            [ "$bytes" = "-" ] && bytes=0
+            
+            ((sum_mes[$mes]+=$bytes))
+            ((acc_mes[$mes]++))
+        done < "$ARCHIVO"
+
+        for m in "${!sum_mes[@]}"; do
+            kib=$(( sum_mes[$m] / 1024 ))
+            echo "$kib KiB sent in $m by ${acc_mes[$m]} accesses."
+        done
         ;;
 
     -o)
         # Ordenar por IP y Bytes (decreciente)
+        # Asumiendo un log estándar, las IP están en la col 1 y los bytes en la 10
         sort -t ' ' -k1,1 -k10,10nr "$ARCHIVO" > access_ord.log
         echo "Resultado guardado en access_ord.log"
         ;;
 
     *)
-        # 1. Filtramos por la IP indicada ($OPCION) en la primera columna
-        # 2. Por cada coincidencia, extraemos y mostramos los datos individuales
-        awk -v ip="$OPCION" '
-        $1 == ip {
-            # Extraemos la fecha y la hora del campo 4
-            # El formato original es [10/Oct/2000:13:55:36
-            split($4, p, ":")
-            fecha = substr(p[1], 2)   # Quita el "[" inicial
-            
-            # Obtenemos la hora, minutos y segundos uniendo el resto de p
-            hora = p[2] ":" p[3] ":" p[4]
-            
-            # El campo 10 son los bytes; si es "-", lo tratamos como 0
-            bytes = ($10 == "-") ? 0 : $10
-            
-            # Imprimimos cada acceso de forma independiente
-            # Formato: Fecha Hora Bytes
-            printf "Fecha: %s | Hora: %s | Bytes enviados: %s\n", fecha, hora, bytes
-        }' "$ARCHIVO"
+        # 1. Filtramos por la IP indicada ($OPCION)
+        # 2. Mostramos total de accesos por DÍA y total de bytes ese día (como pedía el enunciado)
+        declare -A accesos_dia
+        declare -A bytes_dia
+
+        while read -r ip guion1 guion2 fecha_hora zona metodo url protocolo codigo bytes resto; do
+            if [ "$ip" = "$OPCION" ]; then
+                # Extraemos el día completo en formato DD/Mon/YYYY
+                fecha_limpia="${fecha_hora#\[}"
+                dia="${fecha_limpia%%:*}" 
+                
+                [ "$bytes" = "-" ] && bytes=0
+                
+                ((accesos_dia[$dia]++))
+                ((bytes_dia[$dia]+=$bytes))
+            fi
+        done < "$ARCHIVO"
+
+        if [ ${#accesos_dia[@]} -eq 0 ]; then
+            echo "No se encontraron accesos para la IP $OPCION."
+        else
+            # Iteramos sobre las claves (días) guardadas y mostramos la información
+            for dia in $(printf "%s\n" "${!accesos_dia[@]}" | sort); do
+                echo "Día: $dia | Accesos: ${accesos_dia[$dia]} | Bytes enviados: ${bytes_dia[$dia]}"
+            done
+        fi
         ;;
 esac
