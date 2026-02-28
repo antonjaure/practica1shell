@@ -1,3 +1,4 @@
+# Código realizado por Elisa García García y Antón Jaureguizar Lombardero
 #!/bin/bash
 # ---------------------------------------------------------
 # Script: rodaje.sh

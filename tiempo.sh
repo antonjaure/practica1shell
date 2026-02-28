@@ -1,89 +1,85 @@
+#Código realizado por Elisa García García y Antón Jaureguizar Lombardero
 #!/bin/bash
-# Uso: ./tiempo.sh YYYY-MM-DD
-# Ejemplo: ./tiempo.sh 2004-10-20
 
-#uso
-#chmod +x tiempo.sh
-#./tiempo.sh 2004-10-20
-
-
-#!/bin/bash
-# La línea de arriba indica que el script se ejecuta con bash
-
-# Comprobamos que se pasa exactamente 1 argumento
-# $# = número de argumentos que recibe el script
-# -ne = "not equal" (no igual)
+#  $# contiene el número de parámetros pasados al script
+# -ne "not equal"
 if [ $# -ne 1 ]; then
-    # $0 = nombre del script
-    echo "Uso: $0 YYYY-MM-DD"
-    exit 1   # Salimos con código de error
+    echo "Uso: $0 YYYY-MM-DD" # $0 es el nombre del script
+    exit 1
 fi
 
-# Guardamos el argumento en una variable
-# $1 = primer argumento pasado al script
 fecha="$1"
+inicio=$(date -d "$fecha" +%s 2>/dev/null) 
+#date -d convierte la fecha (en la variable fecha) a segundos desde 1970 y la mete a inicio.
+#2>/dev/null redirige cualquier mensaje de error a la nada.
+#1 es el stdout (salida normal), 2 es el stderr (salida de error).
 
-# Convertimos la fecha a segundos desde 1970 (timestamp)
-# date -d permite interpretar una fecha
-# +%s convierte la fecha a segundos
-# 2>/dev/null evita que se muestren errores en pantalla
-inicio=$(date -d "$fecha" +%s 2>/dev/null)
-
-# Comprobamos si la fecha es válida
-# -z comprueba si la variable está vacía
+# -z "is zero" mira si la variable esta vacía, para ver que inicio se asgino correctamente.
 if [ -z "$inicio" ]; then
     echo "Fecha inválida. Usa formato YYYY-MM-DD"
     exit 1
 fi
 
-# Obtenemos el momento actual en segundos
-ahora=$(date +%s)
+ahora=$(date +%s) # Obtenemos el tiempo actual en segundos desde 1970
 
-# Comprobamos que la fecha no sea futura
-# -gt = "greater than" (mayor que)
+#-gt "greater than"
 if [ "$inicio" -gt "$ahora" ]; then
     echo "La fecha debe ser anterior a hoy."
     exit 1
 fi
 
-# Inicializamos contador de años
-años=0
+# COMPROBACIÓN DEL CALENDARIO (AÑO 1582)
 
-# Bucle infinito que iremos rompiendo con break
+# %% busca la primera coincidencia con "-" y elimina todo hasta final de cadena.
+# % haría los mismo pero con la ultima coincidencia.
+# "#" buscaria la primera coincidencia y eliminaria lo que este antes
+ano_input="${fecha%%-*}"
+ajuste_dias=0
+
+# -lt "less than"
+if [ "$ano_input" -lt 1582 ]; then
+    echo "Fecha anterior a 1582. Se descontarán 10 días por el ajuste del calendario juliano al gregoriano."
+    ajuste_dias=10
+fi
+
+
+anos=0 #contador de años
 while true; do
+    siguiente=$((anos + 1)) #actualiza el contador
 
-    # Calculamos el siguiente posible año completo
-    siguiente=$((años + 1))
-    # $(( )) se usa para hacer operaciones matemáticas
+    #Le sumo a la fecha original el numero de años que llevo contado
+    # %s convierte esa nueva fecha a segundos desde 1970, y lo guardo en ts.
+    # si es error (2) redirijo la salida a /dev/null
+    ts=$(date -d "$fecha + $siguiente year" +%s 2>/dev/null) 
 
-    # Calculamos la fecha sumando ese número de años
-    ts=$(date -d "$fecha + $siguiente year" +%s 2>/dev/null)
-
-    # Comprobamos si esa fecha todavía es menor o igual que ahora
-    # -le = "less or equal" (menor o igual)
+    #Si la fecha es menor o igual a la fecha actual sigo contando años, si no, salgo del bucle.
     if [ "$ts" -le "$ahora" ]; then
-        años=$siguiente
+        anos=$siguiente
     else
-        break   # Si ya nos pasamos, salimos del bucle
+        break
     fi
 done
 
-# Calculamos la fecha base después de sumar los años completos
-base=$(date -d "$fecha + $años year" +%s)
-
-# Calculamos el resto de segundos desde ese aniversario
+# Ahora que ya tengo los años se los resto a la fecha original para calcular los días y minutos restantes.
+base=$(date -d "$fecha + $anos year" +%s)
 resto=$((ahora - base))
 
-# 86400 = segundos en un día (24*60*60)
-dias=$((resto / 86400))
+# Calculamos días y minutos iniciales
+dias=$((resto / 86400)) #como esta en segundos divido entre el numero de segundos que tiene un día
+minutos=$(((resto % 86400) / 60)) #calculo los minutos
 
-# % = resto de la división
-# resto % 86400 deja los segundos sobrantes del día actual
-# luego dividimos entre 60 para convertir a minutos
-minutos=$(((resto % 86400) / 60))
+#aplicamos el ajuste de dias (es 0 si la fecha es posterior a 1582, y 10 si es anterior)
+dias=$((dias - ajuste_dias))
 
-# Mostramos resultados
+# Si al restar los 10 días nos quedamos en negativo, 
+# restamos 1 año y sumamos 365 días para compensar.
+if [ "$dias" -lt 0 ]; then
+    anos=$((anos - 1))
+    dias=$((dias + 365))
+fi
+
+#prints
 echo "Desde la fecha $fecha han pasado:"
-echo "- $años años"
+echo "- $anos años"
 echo "- $dias días (dentro del último año)"
 echo "- $minutos minutos (dentro del mismo día)"

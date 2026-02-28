@@ -1,6 +1,6 @@
+#Código realizado por Elisa García García y Antón Jaureguizar Lombardero
 #!/bin/bash
 
-# Comprobar que se pasa un fichero
 if [ $# -ne 1 ]; then
     echo "Uso: $0 agenda.txt"
     exit 1
@@ -8,7 +8,6 @@ fi
 
 AGENDA=$1
 
-# Si no existe, lo crea
 touch $AGENDA
 
 while true
@@ -37,8 +36,7 @@ do
         echo "Email:"
         read email
 
-        # Si el fichero NO acaba en salto de línea, añade uno
-        # tail -c 1 lee el último carácter; si no es vacío, no había salto
+       
         if [ -s "$AGENDA" ] && [ -n "$(tail -c 1 "$AGENDA")" ]; then
             echo >> "$AGENDA"
         fi
@@ -67,7 +65,7 @@ do
         echo "Nuevo email:"
         read nuevo_email
 
-        # sustituye la línea que empiece por nombre#
+       
         sed -i "s/^$nombre#.*/$nuevo_nombre#$nuevo_email/" $AGENDA
         echo "Cliente modificado"
         ;;
@@ -76,7 +74,7 @@ do
         echo "Nombre exacto a borrar:"
         read nombre
 
-        # borra línea que empiece por nombre#
+        
         sed -i "/^$nombre#/d" $AGENDA
         echo "Cliente borrado"
         ;;

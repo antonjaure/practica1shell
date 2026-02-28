@@ -1,3 +1,4 @@
+#Código realizado por Elisa García García y Antón Jaureguizar Lombardero
 #!/bin/bash
 
 opcion=$1
@@ -8,12 +9,10 @@ if [ ! -d "$dir" ] || [ -z "$opcion" ]; then
     exit 1
 fi
 
-# Función auxiliar para procesar archivos uno a uno
 cd "$dir" || exit
 
 case $opcion in
     -a)
-        # Longitud del nombre: calculamos ${#fichero} y ordenamos
         for f in *; do
             [ -e "$f" ] || continue
             printf "%d %s\n" "${#f}" "$f"
@@ -51,4 +50,4 @@ case $opcion in
     *)
         echo "Opción no válida."
         ;;
-esac
+esac        for f in *; do
