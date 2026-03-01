@@ -4,7 +4,7 @@
 # Guardamos los argumentos en variables para que sea más fácil leer el código
 opcion=$1
 
-# "Toma el segundo parámetro ($2). 
+# Toma el segundo parámetro ($2). 
 # Si el usuario NO lo puso, usa un punto '.' (que significa 'directorio actual') por defecto".
 dir=${2:-.}
 

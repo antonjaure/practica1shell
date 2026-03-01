@@ -3,7 +3,7 @@
 
 # Comprobar número de parámetros
 if [ $# -ne 1 ]; then # Si no se pasa exactamente 1 parámetro, mostramos un mensaje de error y terminamos con exit 1 (indica error)
-   #$# : contiene el número de parámetros pasados al script
+    #$# : contiene el número de parámetros pasados al script
     echo "ERROR Recuerda el uso: $0 agenda.txt"
     # $0 : contiene el nombre del script, en este caso clientes.sh
     exit 1

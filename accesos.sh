@@ -37,30 +37,30 @@ case "$OPCION" in
         # Extrae la fecha (columna 4), quita el corchete '[' y la hora ':', dejando solo 'DD/MMM/YYYY'
         # sort -u: deja solo las fechas únicas
         fechas=$(cut -d' ' -f4 "$ARCHIVO" | cut -d'[' -f2 | cut -d':' -f1 | sort -u)
-        min_epoch=20000000000 # Un valor inicial muy alto para buscar el mínimo
-        max_epoch=0 # Un valor inicial de 0 para buscar el máximo
+        minimo=20000000000 # Un valor inicial muy alto para buscar el mínimo
+        maximo=0 # Un valor inicial de 0 para buscar el máximo
         dias_con_acceso=0
         
         export LC_TIME=en_US.UTF-8 # Asegura que el comando date entienda meses en inglés (Jan, Feb...)
 
-        # Bucle para convertir cada fecha a segundos (epoch) y buscar el primer y último día de acceso
-        for f in $fechas; do
-            f_espacios="${f//\// }" # Reemplaza las barras '/' por espacios para que date lo entienda bien
-            epoch=$(date -d "$f_espacios" +%s 2>/dev/null) # Convierte a segundos desde 1970
+        # Bucle para convertir cada fecha a segundos  y buscar el primer y último día de acceso
+        for fecha in $fechas; do
+            f_espacios="${fecha//\// }" # Reemplaza las barras '/' por espacios para que date lo entienda bien
+            f_segundos=$(date -d "$f_espacios" +%s 2>/dev/null) # Convierte a segundos desde 1970
             #si da error (2) redirige la salida a /dev/null para que no se muestre el error
 
-            if [ -n "$epoch" ]; then # -n comprueba si la variable NO está vacía (por si date falló)
+            if [ -n "$f_segundos" ]; then # -n comprueba si la variable NO está vacía (por si date falló)
                 ((dias_con_acceso++)) #incrementa el contador 
                 # Actualiza el mínimo y máximo
-                [ "$epoch" -lt "$min_epoch" ] && min_epoch=$epoch
-                [ "$epoch" -gt "$max_epoch" ] && max_epoch=$epoch
+                [ "$f_segundos" -lt "$minimo" ] && minimo=$f_segundos
+                [ "$f_segundos" -gt "$maximo" ] && maximo=$f_segundos
             fi
         done
         
         #si dias con acceso mayor que 0
         if [ "$dias_con_acceso" -gt 0 ]; then
             # Calcula los días totales transcurridos restando el max y min, dividiendo por los segundos de un día (86400)
-            dias_totales=$(( (max_epoch - min_epoch) / 86400 + 1 ))
+            dias_totales=$(( (maximo - minimo) / 86400 + 1 ))
             # Imprime los días SIN acceso (días totales de rango - días que sí tuvieron acceso)
             echo $((dias_totales - dias_con_acceso))
         else
@@ -82,14 +82,14 @@ case "$OPCION" in
         done < "$ARCHIVO" # Le pasamos el archivo de log al bucle while
 
         # Obtenemos la fecha actual para el print final
-        fecha_exec=$(LANG=en_US.UTF-8 date "+%b %d %H:%M:%S")
-        echo "${fecha_exec}. Registrados ${cantidad} accesos tipo $OPCION con respuesta 200."
+        fecha_actual=$(LANG=en_US.UTF-8 date "+%b %d %H:%M:%S")
+        echo "${fecha_actual}. Registrados ${cantidad} accesos tipo $OPCION con respuesta 200."
         ;;
 
     -s)
         # declare -A crea "Arrays Asociativos" (como un Hashmap clave-valor)
-        declare -A sum_mes
-        declare -A acc_mes
+        declare -A sum_mes #bytes mes
+        declare -A acc_mes #accesos mes
 
         while read -r ip guion1 guion2 fecha_hora zona metodo url protocolo codigo bytes resto; do
             fecha_limpia="${fecha_hora#\[}"   #Quita el primer corchete '['
@@ -105,9 +105,9 @@ case "$OPCION" in
         done < "$ARCHIVO"
 
         # ${!sum_mes[@]} extrae todas las claves (los meses) sin ! te devuelve los valores
-        for m in "${!sum_mes[@]}"; do
-            kib=$(( sum_mes[$m] / 1024 )) # Convierte los bytes totales a Kilobytes
-            echo "$kib KiB sent in $m by ${acc_mes[$m]} accesses."
+        for mes in "${!sum_mes[@]}"; do
+            kib=$(( sum_mes[$mes] / 1024 )) # Convierte los bytes totales a Kilobytes
+            echo "$kib KiB sent in $mes by ${acc_mes[$mes]} accesses."
         done
         ;;
 
